@@ -1,34 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>WebSocket Client</title>
+    <title>WebSocket Test Client</title>
 </head>
 <body>
-    <h2>WebSocket Client</h2>
-    <input type="text" id="messageInput" placeholder="Enter message" />
-    <button onclick="sendMessage()">Send</button>
-    <pre id="messages"></pre>
+    <h2>WebSocket Test Client</h2>
+    <div>
+        <input type="text" id="docId" value="test123" placeholder="Document ID">
+        <button onclick="connect()">Connect</button>
+        <button onclick="disconnect()">Disconnect</button>
+    </div>
+    <div>
+        <input type="text" id="message" placeholder="Message" size="50">
+        <button onclick="send()">Send</button>
+    </div>
+    <div>
+        <h3>Messages:</h3>
+        <div id="messages" style="border:1px solid black; height:300px; overflow-y:scroll; padding:10px;"></div>
+    </div>
 
     <script>
-        let socket = new WebSocket("ws://localhost:8080/ws");
-
-        socket.onopen = function(event) {
-            document.getElementById("messages").textContent += "Connected to WebSocket server\n";
-        };
-
-        socket.onmessage = function(event) {
-            document.getElementById("messages").textContent += "Received: " + event.data + "\n";
-        };
-
-        socket.onclose = function(event) {
-            document.getElementById("messages").textContent += "Disconnected from WebSocket server\n";
-        };
-
-        function sendMessage() {
-            let message = document.getElementById("messageInput").value;
-            socket.send(message);
-            document.getElementById("messageInput").value = "";
+        let socket = null;
+        
+        function connect() {
+            const docId = document.getElementById('docId').value;
+            socket = new WebSocket(`ws://localhost:8080/ws?docId=${docId}`);
+            
+            socket.onopen = function(e) {
+                addMessage('Connected to document: ' + docId);
+            };
+            
+            socket.onmessage = function(event) {
+                addMessage('Received: ' + event.data);
+            };
+            
+            socket.onclose = function(event) {
+                addMessage('Disconnected');
+            };
+            
+            socket.onerror = function(error) {
+                addMessage('Error: ' + error);
+            };
+        }
+        
+        function disconnect() {
+            if (socket) {
+                socket.close();
+            }
+        }
+        
+        function send() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                const message = document.getElementById('message').value;
+                socket.send(message);
+                addMessage('Sent: ' + message);
+            } else {
+                addMessage('Not connected!');
+            }
+        }
+        
+        function addMessage(msg) {
+            const messages = document.getElementById('messages');
+            messages.innerHTML += '<div>' + msg + '</div>';
+            messages.scrollTop = messages.scrollHeight;
         }
     </script>
 </body>
