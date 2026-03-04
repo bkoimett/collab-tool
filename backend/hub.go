@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/gorilla/websocket"
-	_ "github.com/gorilla/websocket"
+	// _ "github.com/gorilla/websocket"
 	// _ "golang.org/x/sys/windows/registry"
 	// _ "golang.org/x/text/message"
 )
