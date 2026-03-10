@@ -1,69 +1,37 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebSocket Test Client</title>
+    <title>Collaborative Markdown Editor</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
 </head>
 <body>
-    <h2>WebSocket Test Client</h2>
-    <div>
-        <input type="text" id="docId" value="test123" placeholder="Document ID">
-        <button onclick="connect()">Connect</button>
-        <button onclick="disconnect()">Disconnect</button>
-    </div>
-    <div>
-        <input type="text" id="message" placeholder="Message" size="50">
-        <button onclick="send()">Send</button>
-    </div>
-    <div>
-        <h3>Messages:</h3>
-        <div id="messages" style="border:1px solid black; height:300px; overflow-y:scroll; padding:10px;"></div>
-    </div>
-
+    <textarea id="markdown-editor"></textarea>
     <script>
-        let socket = null;
+        const docId = window.location.pathname.substring(1) || 'default';
+        const ws = new WebSocket(`ws://localhost:8080/ws?docId=${docId}`);
         
-        function connect() {
-            const docId = document.getElementById('docId').value;
-            socket = new WebSocket(`ws://localhost:8080/ws?docId=${docId}`);
-            
-            socket.onopen = function(e) {
-                addMessage('Connected to document: ' + docId);
-            };
-            
-            socket.onmessage = function(event) {
-                addMessage('Received: ' + event.data);
-            };
-            
-            socket.onclose = function(event) {
-                addMessage('Disconnected');
-            };
-            
-            socket.onerror = function(error) {
-                addMessage('Error: ' + error);
-            };
-        }
-        
-        function disconnect() {
-            if (socket) {
-                socket.close();
+        const easyMDE = new EasyMDE({
+            element: document.getElementById('markdown-editor'),
+            autosave: {
+                enabled: false  // We'll use WebSocket for saving
             }
-        }
+        });
         
-        function send() {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                const message = document.getElementById('message').value;
-                socket.send(message);
-                addMessage('Sent: ' + message);
-            } else {
-                addMessage('Not connected!');
+        let isRemoteChange = false;
+        
+        ws.onmessage = (e) => {
+            isRemoteChange = true;
+            easyMDE.value(e.data);
+            isRemoteChange = false;
+        };
+        
+        easyMDE.codemirror.on('change', () => {
+            if (!isRemoteChange) {
+                ws.send(easyMDE.value());
             }
-        }
-        
-        function addMessage(msg) {
-            const messages = document.getElementById('messages');
-            messages.innerHTML += '<div>' + msg + '</div>';
-            messages.scrollTop = messages.scrollHeight;
-        }
+        });
     </script>
 </body>
 </html>
