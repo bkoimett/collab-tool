@@ -18,7 +18,7 @@ export default function Editor({ content, onChange, suggestions, onAcceptSuggest
       const words = val.trimEnd().split(/\s+/)
       const prefix = words.slice(-3).join(' ')
       if (prefix.length > 2) {
-        fetch(`/api/suggest?prefix=${encodeURIComponent(prefix)}`)
+        fetch(`${import.meta.env.VITE_API_BASE || ''}/api/suggest?prefix=...`)
           .then(r => r.json())
           .then(data => {
             if (data.suggestions?.length) {

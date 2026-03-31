@@ -7,11 +7,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/ws': {
-        target: 'ws://localhost:8080',
+        target: 'wss://collab-tool-backend-jjqu.onrender.com',
         ws: true,
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'https://collab-tool-backend-jjqu.onrender.com',
         changeOrigin: true,
       },
     },

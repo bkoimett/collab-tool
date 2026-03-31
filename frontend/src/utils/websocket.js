@@ -18,8 +18,10 @@ export class WSManager {
   }
 
   _connect() {
-    const host = window.location.host
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+    const host = import.meta.env.VITE_API_BASE
+      ? import.meta.env.VITE_API_BASE.replace('https://', '').replace('http://', '')
+      : window.location.host
+    const proto = import.meta.env.VITE_API_BASE?.startsWith('https') ? 'wss' : 'ws'
     const url = `${proto}://${host}/ws?docId=${encodeURIComponent(this.docId)}&clientId=${this.clientId}&username=${encodeURIComponent(this.username)}`
 
     this.ws = new WebSocket(url)
