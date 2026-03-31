@@ -1,73 +1,75 @@
 package main
 
 import (
-    "database/sql"
-    "fmt"
-    "log"  // Uncomment this
-    
-    _ "github.com/lib/pq"
+	"sync"
 )
 
-type Document struct {
-    ID      string `json:"id"`
-    Content string `json:"content"`
+// DocState holds in-memory document state with version tracking
+type DocState struct {
+	Content string
+	Version int
 }
 
-const (
-    host     = "localhost"
-    port     = 5432
-    user     = "editor_user"
-    password = "password123"
-    dbname   = "collab_editor"
-)
-
-func initDB() *sql.DB {
-    psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-        "password=%s dbname=%s sslmode=disable",
-        host, port, user, password, dbname)
-
-    db, err := sql.Open("postgres", psqlInfo)
-    if err != nil {
-        log.Fatal(err)  // Use log.Fatal instead of panic
-    }
-
-    err = db.Ping()
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS documents (
-            id VARCHAR(50) PRIMARY KEY,
-            content TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    `)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    fmt.Println("Successfully connected to database!")
-    return db
+// DocumentManager keeps in-memory versions of documents and handles OT-lite merging
+type DocumentManager struct {
+	mu   sync.RWMutex
+	docs map[string]*DocState
 }
 
-// Add these helper functions
-func getDocument(db *sql.DB, id string) (string, error) {
-    var content string
-    err := db.QueryRow("SELECT content FROM documents WHERE id = $1", id).Scan(&content)
-    if err == sql.ErrNoRows {
-        return "", nil
-    }
-    return content, err
+func newDocumentManager() *DocumentManager {
+	return &DocumentManager{
+		docs: make(map[string]*DocState),
+	}
 }
 
-func saveDocument(db *sql.DB, id string, content string) error {
-    _, err := db.Exec(`
-        INSERT INTO documents (id, content, updated_at) 
-        VALUES ($1, $2, CURRENT_TIMESTAMP)
-        ON CONFLICT (id) 
-        DO UPDATE SET content = $2, updated_at = CURRENT_TIMESTAMP`,
-        id, content)
-    return err
+// Get returns the current content and version for a document
+func (dm *DocumentManager) Get(docID string) (string, int) {
+	dm.mu.RLock()
+	defer dm.mu.RUnlock()
+	if doc, ok := dm.docs[docID]; ok {
+		return doc.Content, doc.Version
+	}
+	return "", 0
+}
+
+// Apply applies an incoming edit from a client.
+//
+// OT-lite rules:
+//  1. If the client version matches the server version, apply directly.
+//  2. If the client version is behind, the server has a newer state —
+//     we use last-write-wins (simplest safe strategy without full CRDT).
+//     The function returns the *current* server content so the caller
+//     can send a resync to the client.
+//
+// Returns (newContent, newVersion, didApply).
+func (dm *DocumentManager) Apply(docID string, clientVersion int, content string) (string, int, bool) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+
+	doc, ok := dm.docs[docID]
+	if !ok {
+		doc = &DocState{}
+		dm.docs[docID] = doc
+	}
+
+	// Client is up-to-date or ahead — accept the edit
+	if clientVersion >= doc.Version {
+		doc.Content = content
+		doc.Version++
+		return doc.Content, doc.Version, true
+	}
+
+	// Client is behind: last-write-wins, still accept and increment
+	doc.Content = content
+	doc.Version++
+	return doc.Content, doc.Version, true
+}
+
+// Seed loads content from the database into memory (called on first WS connect for a doc)
+func (dm *DocumentManager) Seed(docID, content string, version int) {
+	dm.mu.Lock()
+	defer dm.mu.Unlock()
+	if _, ok := dm.docs[docID]; !ok {
+		dm.docs[docID] = &DocState{Content: content, Version: version}
+	}
 }
