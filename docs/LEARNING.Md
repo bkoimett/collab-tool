@@ -12,8 +12,9 @@ chmod +x test.sh -- give permissions to bash file
 ## Progress
 
 1. Websocket layer - bidirectional communication / persistanet connections / low latency
-2. Hub Pattern - 
-3. 
+2. Hub Pattern - manages connections and clients
+3. Document - manages crud and memory
+4. Database - manages connection to the db
 
 sync.rwmutex - read simultaneously and write data exclussively Lock
 
